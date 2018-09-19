@@ -16,6 +16,7 @@ using DAQ.HAL;
 using DAQ.Environment;
 
 using NationalInstruments;
+//using NationalInstruments.Common;
 using NationalInstruments.Vision;
 using NationalInstruments.Vision.Acquisition.Imaqdx;
 using NationalInstruments.Vision.Internal;
@@ -34,8 +35,9 @@ namespace IMAQ
     /// </summary>
     public class CameraController
     {
-        #region Setup
+        #region Setup   
         public VisionImage image;
+        public double SummedPixels;
         public enum CameraState { FREE, BUSY, READY_FOR_ACQUISITION, STREAMING, ACQUISITION_TERMINATED };
         private CameraState state = new CameraState();
         private object streamStopLock = new object();
@@ -97,29 +99,35 @@ namespace IMAQ
             imageWindow.WriteToConsole("Streaming stopped");
         }
 
-        public byte[,] SingleSnapshot(string attributesPath)
+        public ushort[,] SingleSnapshot(string attributesPath)
         {
             return SingleSnapshot(attributesPath, false);
         }
 
-        public byte[,] SingleSnapshot(string attributesPath, bool addToImageList)
+        public ushort[,] SingleSnapshot(string attributesPath, bool addToImageList)
         {
             imageWindow.WriteToConsole("Taking snapshot");
             imageWindow.WriteToConsole("Applied camera attributes from " + attributesPath);
             SetCameraAttributes(attributesPath);
+            Stopwatch watch = new Stopwatch();
             try
             {
-
+                
                 if (state == CameraState.FREE)
                 {
+                    
                     image = new VisionImage();
                     state = CameraState.READY_FOR_ACQUISITION;
                     try
                     {
+                        watch.Start();
                         imaqdxSession.Snap(image);
+                        watch.Stop();
                         if (windowShowing)
                         {
+                            long snaptime = watch.ElapsedMilliseconds;
                             imageWindow.AttachToViewer(image);
+                            imageWindow.WriteToConsole(snaptime.ToString());
                         }
                         if (addToImageList)
                         {
@@ -127,7 +135,24 @@ namespace IMAQ
                         }
                         PixelValue2D pval = image.ImageToArray();
                         state = CameraState.FREE;
-                        return pval.U8;
+                        if (image.Type == ImageType.U8)
+                        {
+                            ushort[,] ushortData = new ushort[pval.U8.GetLength(0), pval.U8.GetLength(1)];
+                            for (int j = 0; j < pval.U8.GetLength(0); j++)
+                            {
+                                for (int i = 0; i < pval.U8.GetLength(1); i++)
+                                {
+                                    ushortData[j, i] = (pval.U8)[j, i];
+                                }
+                            }
+                            return ushortData;
+                        }
+                        if (image.Type == ImageType.U16)
+                        {
+                            return pval.U16;
+                        }
+                        else return null;
+                        
                     }
                     catch (ObjectDisposedException e)
                     {
@@ -139,6 +164,11 @@ namespace IMAQ
                         MessageBox.Show(e.Message);
                         throw new ImaqdxException();
                     }
+                    catch (VisionException e)
+                    {
+                        MessageBox.Show(e.VisionErrorText);
+                        throw new TimeoutException();
+                    }
                 }
                 else return null;
 
@@ -149,9 +179,7 @@ namespace IMAQ
             }
         }
 
-      
-        
-        public byte[][,] MultipleSnapshot(string attributesPath, int numberOfShots)
+        public ushort[][,] MultipleSnapshot(string attributesPath, int numberOfShots)
         {
             SetCameraAttributes(attributesPath);
             VisionImage[] images = new VisionImage[numberOfShots];
@@ -161,13 +189,118 @@ namespace IMAQ
 
                 watch.Start();
                 state = CameraState.READY_FOR_ACQUISITION;
-                
+
                 imaqdxSession.Sequence(images, numberOfShots);
+                //imaqdxSession.SequenceAsync(images, numberOfShots,1);
                 watch.Stop();
                 if (windowShowing)
                 {
-                long interval = watch.ElapsedMilliseconds;
-                imageWindow.WriteToConsole(interval.ToString());        
+                    long interval = watch.ElapsedMilliseconds;
+                    //imageWindow.WriteToConsole(interval.ToString());
+                }
+
+                List<ushort[,]> ushortList = new List<ushort[,]>();
+                foreach (VisionImage i in images)
+                {
+                    PixelValue2D pval = i.ImageToArray();
+                    if (i.Type == ImageType.U8)
+                    {
+                        ushort[,] ushortData = new ushort[pval.U8.GetLength(0), pval.U8.GetLength(1)];
+                        for (int j = 0; j < pval.U8.GetLength(0); j++)
+                        {
+                            for (int k = 0; k < pval.U8.GetLength(1); k++)
+                            {
+                                ushortData[j, k] = (pval.U8)[j, k];
+                            }
+                        }
+                        ushortList.Add(ushortData);
+                    }
+                    if (i.Type == ImageType.U16)
+                    {
+                        ushortList.Add(pval.U16);
+                    }                    
+
+                    // if (windowShowing)
+                    //{
+                    //  imageWindow.AttachToViewer(i);
+
+                    // } 
+
+                }
+                state = CameraState.FREE;
+                
+
+                return ushortList.ToArray();
+
+
+            }
+            catch (ImaqdxException e)
+            {
+                MessageBox.Show(e.Message);
+                state = CameraState.FREE;
+                throw new TimeoutException();
+                
+            }
+            catch (VisionException e)
+           {
+                MessageBox.Show(e.VisionErrorText);
+                state = CameraState.FREE;
+                throw new TimeoutException();
+                
+            }
+
+        }
+
+        //Kyle's version of multiple snapshot
+
+        public byte[][,] MultipleSnapshotKyles(string attributesPath, int numberOfShots)
+        {
+            SetCameraAttributes(attributesPath);
+            PrintCameraAttributesToConsole();
+            VisionImage[] images = new VisionImage[numberOfShots];
+            for (uint i = 0; i < images.Length; ++i)
+            {
+                images[i] = new VisionImage();
+            }
+            Stopwatch watch = new Stopwatch();
+            try
+            {
+
+                watch.Start();
+
+                // state = CameraState.READY_FOR_ACQUISITION;
+                ////imaqdxSession.Close();
+                //////AttemptedWorkaround
+
+                //ImaqdxSession imaqdxSession2 = new ImaqdxSession("cam2");
+
+                imaqdxSession.Acquisition.Configure(ImaqdxAcquisitionType.SingleShot, numberOfShots);
+
+                imaqdxSession.Acquisition.Start();
+                state = CameraState.READY_FOR_ACQUISITION;
+                ////// Get each image in the sequence
+                for (uint i = 0; i < images.Length; ++i)
+                {
+                    imaqdxSession.Acquisition.GetImageAt(images[i], i);
+                }
+
+                ////// Stop, Unconfigure, and Close the camera
+
+                imaqdxSession.Acquisition.Stop();
+                imaqdxSession.Acquisition.Unconfigure();
+                imaqdxSession.Acquisition.Dispose();
+                //imaqdxSession2.Close();
+                ////imaqdxSession = new ImaqdxSession("cam2");
+
+                // imaqdxSession.Sequence(images, numberOfShots);
+
+
+                //  Configure(ImaqdxAcquisitionType.SingleShot, numberOfShots);
+                watch.Stop();
+                if (windowShowing)
+                {
+                    long interval = watch.ElapsedMilliseconds;
+                    imageWindow.WriteToConsole(interval.ToString());
                 }
 
                 List<byte[,]> byteList = new List<byte[,]>();
@@ -175,18 +308,18 @@ namespace IMAQ
                 {
                     byteList.Add((i.ImageToArray()).U8);
 
-                   // if (windowShowing)
+                    // if (windowShowing)
                     //{
-                      //  imageWindow.AttachToViewer(i);
+                    //  imageWindow.AttachToViewer(i);
 
-                   // }
+                    // }
 
                 }
                 state = CameraState.FREE;
 
                 return byteList.ToArray();
-                
-                
+
+
             }
             catch (ImaqdxException e)
             {
@@ -197,6 +330,107 @@ namespace IMAQ
 
         }
 
+        //Modified version of Kyle's version
+        public ushort[][,] MultipleSnapshotKylesModified(string attributesPath, int numberOfShots)
+        {
+            SetCameraAttributes(attributesPath);
+            PrintCameraAttributesToConsole();
+            VisionImage[] images = new VisionImage[numberOfShots];
+            for (uint i = 0; i < images.Length; ++i)
+            {
+                images[i] = new VisionImage();
+            }
+            Stopwatch watch = new Stopwatch();
+            try
+            {
+
+                watch.Start();
+
+                // state = CameraState.READY_FOR_ACQUISITION;
+                ////imaqdxSession.Close();
+                //////AttemptedWorkaround
+
+                //ImaqdxSession imaqdxSession2 = new ImaqdxSession("cam2");
+
+                imaqdxSession.Acquisition.Configure(ImaqdxAcquisitionType.SingleShot, numberOfShots);
+
+                imaqdxSession.Acquisition.Start();
+                state = CameraState.READY_FOR_ACQUISITION;
+                ////// Get each image in the sequence
+                for (uint i = 0; i < images.Length; ++i)
+                {
+                    imaqdxSession.Acquisition.GetImageAt(images[i], i);
+                }
+
+                ///// Stop, Unconfigure, and Close the camera
+
+                imaqdxSession.Acquisition.Stop();
+                imaqdxSession.Acquisition.Unconfigure();
+                imaqdxSession.Acquisition.Dispose();
+                //imaqdxSession2.Close();
+                ////imaqdxSession = new ImaqdxSession("cam2");
+
+                // imaqdxSession.Sequence(images, numberOfShots);
+
+
+                //  Configure(ImaqdxAcquisitionType.SingleShot, numberOfShots);
+                watch.Stop();
+                if (windowShowing)
+                {
+                    long interval = watch.ElapsedMilliseconds;
+                    imageWindow.WriteToConsole(interval.ToString());
+                }
+                //List<ushort[,]> fakeImages = new List<ushort[,]>();
+                //for (int i = 0; i < numberOfShots; i++)
+                //{
+                //    fakeImages.Add(new ushort[1000, 1000]);
+                //}
+
+                List<ushort[,]> ushortList = new List<ushort[,]>();
+                foreach (VisionImage i in images)
+                {
+                    PixelValue2D pval = i.ImageToArray();
+                    if (i.Type == ImageType.U8)
+                    {
+                        ushort[,] ushortData = new ushort[pval.U8.GetLength(0), pval.U8.GetLength(1)];
+                        for (int j = 0; j < pval.U8.GetLength(0); j++)
+                        {
+                            for (int k = 0; k < pval.U8.GetLength(1); k++)
+                            {
+                                ushortData[j, k] = (pval.U8)[j, k];
+                            }
+                        }
+                        ushortList.Add(ushortData);
+                    }
+                    if (i.Type == ImageType.U16)
+                    {
+                        ushortList.Add(pval.U16);
+                    }
+
+                    // if (windowShowing)
+                    //{
+                    //  imageWindow.AttachToViewer(i);
+
+                    // } 
+
+                }
+                state = CameraState.FREE;
+
+                return ushortList.ToArray();
+                //return fakeImages.ToArray();
+
+
+            }
+            catch (ImaqdxException e)
+            {
+                MessageBox.Show(e.Message);
+                state = CameraState.FREE;
+                throw new TimeoutException();
+            }
+
+        }
+
+        
         public bool IsReadyForAcqisition()
         {
             if (state == CameraState.READY_FOR_ACQUISITION)
@@ -259,6 +493,10 @@ namespace IMAQ
 
         private void stream()
         {
+            ushort[,] latestdata;
+            
+            double summedPixels = 0;
+            SummedPixels = 0;
             image = new VisionImage();
             try
             {
@@ -288,6 +526,42 @@ namespace IMAQ
                         if (windowShowing)
                         {
                             imageWindow.AttachToViewer(image);
+
+                            if (imageWindow.imageViewer.Roi != null)
+                            {
+                                RectangleContour contour = imageWindow.imageViewer.Roi.GetBoundingRectangle();
+                                int height = (int)contour.Height;
+                                int width = (int)contour.Width;
+                                PixelValue2D pval = image.ImageToArray(contour);
+
+                                if (image.Type == ImageType.U8)
+                                {
+                                    ushort[,] ushortData = new ushort[pval.U8.GetLength(0), pval.U8.GetLength(1)];
+                                    for (int j = 0; j < pval.U8.GetLength(0); j++)
+                                    {
+                                        for (int i = 0; i < pval.U8.GetLength(1); i++)
+                                        {
+                                            ushortData[j, i] = (pval.U8)[j, i];
+                                        }
+                                    }
+                                    latestdata = ushortData;
+                                }
+                                else
+                                {
+                                    latestdata = pval.U16;
+                                }
+
+                                summedPixels = 0;
+                                for (int i = 0; i < width; i++)
+                                {
+                                    for (int j = 0; j < height; j++)
+                                    {
+                                        summedPixels = summedPixels + latestdata[j, i];
+                                    }
+                                }
+                                SummedPixels = summedPixels;
+                                                                
+                            }
                         }
                     }
                     catch (InvalidOperationException e)

@@ -4,28 +4,27 @@
 import clr
 import sys
 from System.IO import Path
+import time
 
 # Import the edm control software assemblies into IronPython
 
-sys.path.append(Path.GetFullPath("..\\ScanMaster\\bin\\Sympathetic\\"))
-clr.AddReferenceToFile("ScanMaster.exe")
+#sys.path.append(Path.GetFullPath("C:\\ExperimentControl\\EDMSuite\\ScanMaster\\bin\\Sympathetic\\"))
+#clr.AddReferenceToFile("ScanMaster.exe")
 
-sys.path.append(Path.GetFullPath("..\\MOTMaster\\bin\\Sympathetic\\"))
+sys.path.append(Path.GetFullPath("C:\\ExperimentControl\\EDMSuite\\MOTMaster\\bin\\Sympathetic\\"))
 clr.AddReferenceToFile("MOTMaster.exe")
 
-sys.path.append(Path.GetFullPath("..\\SympatheticHardwareControl\\bin\\Sympathetic\\"))
+sys.path.append(Path.GetFullPath("C:\\ExperimentControl\\EDMSuite\\SympatheticHardwareControl\\bin\\Sympathetic\\"))
 clr.AddReferenceToFile("SympatheticHardwareControl.exe")
 clr.AddReferenceToFile("DAQ.dll")
 clr.AddReferenceToFile("SharedCode.dll")
-
-
 
 # Load some system assemblies that we'll need
 clr.AddReference("System.Drawing")
 clr.AddReference("System.Windows.Forms")
 clr.AddReference("System.Xml")
 
-# code for IronPython remoting problem workaround
+# code for IronPython remoting problem workaround 
 class typedproxy(object):
     __slots__ = ['obj', 'proxyType']
     def __init__(self, obj, proxyType):
@@ -39,13 +38,15 @@ class typedproxy(object):
 
 # create connections to the control programs
 import System
-import ScanMaster
+#import ScanMaster
 import MOTMaster
 import SympatheticHardwareControl
 
-sm = typedproxy(System.Activator.GetObject(ScanMaster.Controller, 'tcp://localhost:1170/controller.rem'), ScanMaster.Controller)
+#sm = typedproxy(System.Activator.GetObject(ScanMaster.Controller, 'tcp://localhost:1170/controller.rem'), #ScanMaster.Controller)
 hc = typedproxy(System.Activator.GetObject(SympatheticHardwareControl.Controller, 'tcp://localhost:1172/controller.rem'), SympatheticHardwareControl.Controller)
 mm = typedproxy(System.Activator.GetObject(MOTMaster.Controller, 'tcp://localhost:1187/controller.rem'), MOTMaster.Controller)
+
+# "This might tell Iron python which port to look for to use motmaster/scanmaster" - Sean, 2016
 
 # usage message
 print('Sympathetic interactive scripting control')
@@ -73,5 +74,5 @@ for i in range(len(scriptsToLoad)):
 print ""
 
 def run(i):
-	execfile(scriptsToLoad[i])
+	execfile(scriptsToLoad[i],globals())
 	run_script()

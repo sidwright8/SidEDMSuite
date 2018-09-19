@@ -15,13 +15,13 @@ namespace DAQ
             Paths.Add("fakeData", "c:\\Data\\Examples\\");
 
             Paths.Add("MOTMasterDataPath", "c:\\Data\\MOTMasterData\\");
-            Paths.Add("scriptListPath", "C:\\Experiment Control\\EDMSuiteTrunk\\SympatheticMOTMasterScripts\\");
-            Paths.Add("daqDLLPath", "C:\\Experiment Control\\EDMSuiteTrunk\\DAQ\\bin\\Sympathetic\\daq.dll");
+            Paths.Add("scriptListPath", "C:\\ExperimentControl\\EDMSuite\\SympatheticMOTMasterScripts\\");
+            Paths.Add("daqDLLPath", "C:\\ExperimentControl\\EDMSuite\\DAQ\\bin\\Sympathetic\\daq.dll");
             Paths.Add("MOTMasterExePath",
-                "C:\\Experiment Control\\EDMSuiteTrunk\\MOTMaster\\bin\\Sympathetic\\");
+                "C:\\ExperimentControl\\EDMSuite\\MOTMaster\\bin\\Sympathetic\\");
             Paths.Add("UntriggeredCameraAttributesPath", "c:\\Data\\Settings\\CameraAttributes\\SHCCameraAttributes.txt");
             Paths.Add("CameraAttributesPath", "c:\\Data\\Settings\\CameraAttributes\\MOTMasterCameraAttributes.txt");
-            Paths.Add("HardwareClassPath", "C:\\Experiment Control\\EDMSuiteTrunk\\DAQ\\PXISympatheticHardware.cs");
+            Paths.Add("HardwareClassPath", "C:\\ExperimentControl\\EDMSuite\\DAQ\\PXISympatheticHardware.cs");
 
             DataSearchPaths.Add(Paths["scanMasterDataPath"]);
 

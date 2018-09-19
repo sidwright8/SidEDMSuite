@@ -6,6 +6,8 @@ using System.Drawing;
 using System.Text;
 using System.Windows.Forms;
 
+using DAQ.Environment;
+
 using NationalInstruments.UI.WindowsForms;
 using NationalInstruments.UI;
 
@@ -102,8 +104,7 @@ namespace IMAQ
             
         }
 
-
-
+               
         private void hScrollBar_Scroll(object sender, ScrollEventArgs e)
         {
            
@@ -127,8 +128,20 @@ namespace IMAQ
 
         }
 
+        private void StopButton_Click(object sender, EventArgs e)
+        {
+            IM.StopStream();
+        }
 
-      
+        private void SnapshotButton_Click(object sender, EventArgs e)
+        {
+            IM.SingleSnapshot((string)Environs.FileSystem.Paths["UntriggeredCameraAttributesPath"]);
+        }
+
+        private void StreamButton_Click(object sender, EventArgs e)
+        {
+            IM.Stream((string)Environs.FileSystem.Paths["UntriggeredCameraAttributesPath"]);
+        }
 
 
         

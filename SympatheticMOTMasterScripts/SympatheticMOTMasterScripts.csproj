@@ -88,6 +88,17 @@
     <PlatformTarget>x86</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'LiMOT|AnyCPU'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\LiMOT\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisIgnoreBuiltInRuleSets>false</CodeAnalysisIgnoreBuiltInRuleSets>
+    <CodeAnalysisIgnoreBuiltInRules>false</CodeAnalysisIgnoreBuiltInRules>
+    <CodeAnalysisFailOnMissingRules>false</CodeAnalysisFailOnMissingRules>
+  </PropertyGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
@@ -98,12 +109,73 @@
   -->
   <ItemGroup>
     <Compile Include="AbsTesting.cs" />
+    <Compile Include="BallisticExpansion.cs" />
+    <Compile Include="CMOTcoilRampTesting.cs" />
+    <Compile Include="Coils testing.cs" />
+    <Compile Include="Imaging out of mot with molasses on.cs" />
+    <Compile Include="ImagingFromMOTd1probe.cs" />
+    <Compile Include="ImagingInMOT.cs" />
+    <Compile Include="MagTrapFromCMOT.cs" />
+    <Compile Include="MagTrapFromMolasses.cs" />
+    <Compile Include="MolassesFromCMOT.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MolassesFromCMOTD2.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MolassesFromMOT.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MolassesFromMOTD2.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MolassesFromMOTLifetime.cs" />
+    <Compile Include="MolassesFromMOTPulseRamp.cs" />
+    <Compile Include="MolassesFromMOTPulseRampDown.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MolassesFromSalomonCMOT.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MolassesPulseRamp2Stage.cs" />
+    <Compile Include="MOTLoadingTimeAbsImage.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MOTwithMolassesOn.cs" />
+    <Compile Include="OffsetLockSwitchingTest.cs" />
+    <Compile Include="ReleaseFromCMOT.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="ReleaseFromCMOTforD2MolassesComparison.cs" />
+    <Compile Include="ReleaseFromMOTfor2StageComparison.cs" />
+    <Compile Include="ReleaseFromMOTforD2MolassesComparison.cs" />
+    <Compile Include="ReleaseFromMOTForPulseRampComparison.cs" />
+    <Compile Include="ReleaseFromMOTForPulseRampDownComparison.cs" />
+    <Compile Include="ReleaseFromSalomonCMOT.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SalomonCMOTMolMagTrap.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SalomonCMOTMolMagTrapExtMagTrap.cs" />
+    <Compile Include="SalomonCMOTMolMagTrapRamp.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="TestingCameraDelayMicroSec.cs" />
+    <Compile Include="CMOTAbsImaging.cs" />
+    <Compile Include="CMOTAbsImagingMicroSec.cs" />
+    <Compile Include="LifetimeViaMOTRecaptureShutter.cs" />
     <Compile Include="MagTrapAbsImage.cs" />
     <Compile Include="LoadMagTrap.cs" />
-    <Compile Include="MagTrapAbsImageTesting.cs" />
+    <Compile Include="MagTrapAbsImageMicroSec.cs" />
+    <Compile Include="MotCmotMot.cs" />
     <Compile Include="MOTimaging.cs" />
+    <Compile Include="MOTimagingWithProbeRepump.cs" />
     <Compile Include="MOTLoadingTime.cs" />
     <Compile Include="ReleaseRecapture.cs" />
+    <Compile Include="ReleaseRecaptureAbsImage.cs" />
+    <Compile Include="TestingMWtrapAM.cs" />
+    <Compile Include="TestingTransportCoils.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="System" />

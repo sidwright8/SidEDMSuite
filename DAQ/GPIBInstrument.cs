@@ -28,6 +28,15 @@ namespace DAQ.HAL
 			}
 		}
 
+//        public void Connect(bool checkRes)
+//       {
+//           if (!Environs.Debug)
+//            {
+//                session = new GpibSession(address, 0, 3000, checkRes);
+//
+//            }
+//        }
+
         public override void Disconnect()
 		{
 			if (!Environs.Debug)

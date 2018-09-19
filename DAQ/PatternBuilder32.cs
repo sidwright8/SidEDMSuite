@@ -71,6 +71,28 @@ namespace DAQ.Pattern
             return Pulse(startTime,delay,duration,
                 ((DigitalOutputChannel)Environs.Hardware.DigitalOutputChannels[channel]).BitNumber);
         }
+        /*** Allows you to set whether a pulse in the pattern is actually executed ***/
+        public int PulseSwitchable(int startTime, int delay, int duration, int channel)
+        {
+            AddEdge(channel, startTime + delay, true);
+            AddEdge(channel, startTime + delay + duration, false);
+
+            return delay + duration;
+        }
+        public int PulseSwitchable(int startTime, int delay, int duration, string channel, bool dopulse)
+        {
+            if (dopulse == true)
+            {
+                return PulseSwitchable(startTime, delay, duration,
+                    ((DigitalOutputChannel)Environs.Hardware.DigitalOutputChannels[channel]).BitNumber);
+            }
+            else 
+            {
+                return 0;
+            }
+
+        }
+
 		/** Adds a downward going pulse **/
 		public int DownPulse(int startTime, int delay, int duration, int channel )
 		{

@@ -50,34 +50,42 @@ namespace DAQ.HAL
         {
             if (!connected) Connect();
             if (!Environs.Debug) serial.Write(command);
-            Disconnect();
+            //Disconnect();
         }
 
         protected void Write(byte[] command)
         {
+        
             if (!connected) Connect();
             if (!Environs.Debug) serial.Write(command);
-            Disconnect();
+           // Disconnect();
         }
 
         protected string Query(string q)
         {
-            return serial.Query(q);
+            if (!connected) Connect();
+            if (!Environs.Debug) return serial.Query(q);
+            else return null;
         }
 
         protected override string Read()
         {
-            return serial.ReadString();
+            if (!connected) Connect();
+            if (!Environs.Debug) return serial.ReadString();
+            else return null;
         }
 
         protected string Read(int bytes)
         {
-            return serial.ReadString(bytes);
+            if (!connected) Connect();
+            if (!Environs.Debug) return serial.ReadString(bytes);
+            else return null;
         }
 
         protected void Clear()
         {
-            serial.Clear();
+            if (!connected) Connect();
+            if (!Environs.Debug) serial.Clear();
         }
 
         protected double QueryDouble(string q)
@@ -85,7 +93,7 @@ namespace DAQ.HAL
             double d = 0.0;
             if (!connected) Connect();
             if (!Environs.Debug) d = Convert.ToDouble(Query(q));
-            Disconnect();
+            //Disconnect();
             return d;
         }
     }

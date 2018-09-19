@@ -16,6 +16,8 @@ public class Patterns : MOTMasterScript
     public Patterns()
     {
         Parameters = new Dictionary<string, object>();
+        Parameters["TopMOTCoilCurrent"] = 2.316;
+        Parameters["BottomMOTCoilCurrent"] = 2.41;
         Parameters["PatternLength"] = 200000;
         Parameters["MOTStartTime"] = 1000;
         Parameters["MOTCoilsCurrent"] = 10.0;
@@ -31,10 +33,14 @@ public class Patterns : MOTMasterScript
         //Parameters["Frame3Trigger"] = 16500;
         //Parameters["Frame4TriggerDuration"] = 50;
         //Parameters["Frame4Trigger"] = 17000; 
-        Parameters["TSAcceleration"] = 10.0;
-        Parameters["TSDeceleration"] = 10.0;
+
+
+        Parameters["TSAcceleration"] = 2000.0;
+        Parameters["TSDeceleration"] = 2000.0;
         Parameters["TSDistance"] = 0.0;
-        Parameters["TSVelocity"] = 10.0;
+        Parameters["TSVelocity"] = 500.0;
+        Parameters["TSDistanceF"] = 0.0;
+        Parameters["TSDistanceB"] = 0.0;
 
     }
 
@@ -49,11 +55,13 @@ public class Patterns : MOTMasterScript
         p.Pulse(10000, 0, 100000, "TranslationStageTrigger");
 
         p.AddEdge("CameraTrigger", 0, true);
+        p.AddEdge("shutterenable", 0, true);
         p.DownPulse((int)Parameters["Frame0Trigger"], 0, (int)Parameters["Frame0TriggerDuration"], "CameraTrigger");
         p.DownPulse((int)Parameters["Frame1Trigger"], 0, (int)Parameters["Frame1TriggerDuration"], "CameraTrigger");
         //p.DownPulse((int)Parameters["Frame2Trigger"], 0, (int)Parameters["Frame2TriggerDuration"], "CameraTrigger");
         //p.DownPulse((int)Parameters["Frame3Trigger"], 0, (int)Parameters["Frame3TriggerDuration"], "CameraTrigger");
         //p.DownPulse((int)Parameters["Frame4Trigger"], 0, (int)Parameters["Frame4TriggerDuration"], "CameraTrigger");
+        p.AddEdge("shutterenable", 50000, false);
 
         p.DownPulse(190000, 0, 50, "CameraTrigger");
         p.DownPulse(195000, 0, 50, "CameraTrigger");
@@ -73,7 +81,7 @@ public class Patterns : MOTMasterScript
 
         p.AddChannel("aom2frequency");
         p.AddChannel("aom3frequency");
-
+        
         p.AddAnalogValue("coil0current", 0, 0);
         p.AddAnalogValue("aom2frequency", (int)Parameters["MOTStartTime"], 190.875);
         p.AddAnalogValue("aom3frequency", (int)Parameters["MOTStartTime"], 210.875);

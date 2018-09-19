@@ -12,8 +12,10 @@ namespace DAQ
     {
         void PrepareRemoteCameraControl();
         void FinishRemoteCameraControl();
-        byte[,] GrabSingleImage(string cameraSettings);
-        byte[][,] GrabMultipleImages(string cameraSettings, int numberOfShots);
+        ushort[,] GrabSingleImage(string cameraSettings);
+        ushort[][,] GrabMultipleImages(string cameraSettings, int numberOfShots);
+        //byte[,] GrabSingleImage(string cameraSettings);
+        //byte [][,] GrabMultipleImages(string cameraSettings, int numberOfShots);
         bool IsReadyForAcquisition();
         void SaveImage(String dataStoreFilePath);
         void SaveImageWithDialog();

@@ -18,6 +18,7 @@ namespace MOTMaster
         private string motMasterDataPath;
         private string element;
 
+
         public MMDataIOHelper(string motMasterDataPath, string element)
         {
             this.motMasterDataPath = motMasterDataPath;
@@ -28,7 +29,7 @@ namespace MOTMaster
 
         public void StoreRun(string saveFolder, int batchNumber, string pathToPattern, string pathToHardwareClass,
             Dictionary<String, Object> dict, Dictionary<String, Object> report,
-            string cameraAttributesPath, byte[,] imageData)
+            string cameraAttributesPath, ushort[,] imageData)
         {
             string fileTag = getDataID(element, batchNumber);
 
@@ -41,13 +42,28 @@ namespace MOTMaster
         }
         public void StoreRun(string saveFolder, int batchNumber, string pathToPattern, string pathToHardwareClass,
             Dictionary<String, Object> dict, Dictionary<String, Object> report,
-            string cameraAttributesPath, byte[][,] imageData)
+            string cameraAttributesPath, ushort[][,] imageData)
         {
             string fileTag = getDataID(element, batchNumber);
 
             saveToFiles(fileTag, saveFolder, batchNumber, pathToPattern, pathToHardwareClass, dict, report, cameraAttributesPath, imageData);
 
             string[] files = putCopiesOfFilesToZip(saveFolder, fileTag);
+
+            //deleteFiles(saveFolder, fileTag);
+            deleteFiles(files);
+        }
+        public void StoreRun(string saveFolder, int batchNumber, string pathToPattern, string pathToHardwareClass,
+            Dictionary<String, Object> dict, Dictionary<String, Object> report,
+            string cameraAttributesPath, ushort[][,] imageData, double[,] absImage, double[] columnSum, double[] rowSum)
+        {
+            string fileTag = getDataID(element, batchNumber);
+            Console.WriteLine("got Data ID");
+
+            saveToFiles(fileTag, saveFolder, batchNumber, pathToPattern, pathToHardwareClass, dict, report, cameraAttributesPath, imageData,absImage,columnSum,rowSum);
+
+            string[] files = putCopiesOfFilesToZip(saveFolder, fileTag);
+            Console.WriteLine("zipped files");
 
             //deleteFiles(saveFolder, fileTag);
             deleteFiles(files);
@@ -79,7 +95,7 @@ namespace MOTMaster
         }
         private void saveToFiles(string fileTag, string saveFolder, int batchNumber, string pathToPattern, string pathToHardwareClass,
             Dictionary<String, Object> dict, Dictionary<String, Object> report,
-            string cameraAttributesPath, byte[,] imageData)
+            string cameraAttributesPath, ushort[,] imageData)
         {
             storeDictionary(saveFolder + fileTag + "_parameters.txt", dict);
             File.Copy(pathToPattern, saveFolder + fileTag + "_script.cs");
@@ -90,13 +106,35 @@ namespace MOTMaster
         }
         private void saveToFiles(string fileTag, string saveFolder, int batchNumber, string pathToPattern, string pathToHardwareClass,
             Dictionary<String, Object> dict, Dictionary<String, Object> report,
-            string cameraAttributesPath, byte[][,] imageData)
+            string cameraAttributesPath, ushort[][,] imageData)
         {
             storeDictionary(saveFolder + fileTag + "_parameters.txt", dict);
             File.Copy(pathToPattern, saveFolder + fileTag + "_script.cs");
             File.Copy(pathToHardwareClass, saveFolder + fileTag + "_hardwareClass.cs");
             storeCameraAttributes(saveFolder + fileTag + "_cameraParameters.txt", cameraAttributesPath);
             storeImage(saveFolder + fileTag, imageData);
+            storeDictionary(saveFolder + fileTag + "_hardwareReport.txt", report);
+        }
+        private void saveToFiles(string fileTag, string saveFolder, int batchNumber, string pathToPattern, string pathToHardwareClass,
+            Dictionary<String, Object> dict, Dictionary<String, Object> report,
+            string cameraAttributesPath, ushort[][,] imageData, double[,]absImage,double[] columnSum,double[] rowSum)
+        {
+            storeDictionary(saveFolder + fileTag + "_parameters.txt", dict);
+            Console.WriteLine("stored experiment params");
+            File.Copy(pathToPattern, saveFolder + fileTag + "_script.cs");
+            Console.WriteLine("copied script");
+            File.Copy(pathToHardwareClass, saveFolder + fileTag + "_hardwareClass.cs");
+            Console.WriteLine("copied hardware class");
+            storeCameraAttributes(saveFolder + fileTag + "_cameraParameters.txt", cameraAttributesPath);
+            Console.WriteLine("stored camera attrributes");
+            storeImage(saveFolder + fileTag, imageData);
+            Console.WriteLine("stored image");
+            //storeAbsImage(saveFolder + fileTag, absImage);
+            //Console.WriteLine("stored abs image");
+            storeArray(saveFolder + fileTag + "_row.csv", rowSum);
+            storeArray(saveFolder + fileTag + "_col.csv", columnSum);
+            Console.WriteLine("stored row/column data");
+
             storeDictionary(saveFolder + fileTag + "_hardwareReport.txt", report);
         }
 
@@ -141,7 +179,7 @@ namespace MOTMaster
             File.Copy(attributesPath, savePath);
         }
 
-        private void storeImage(string savePath, byte[][,] imageData)
+        private void storeImage(string savePath, ushort[][,] imageData)
         {
             for (int i = 0; i < imageData.Length; i++)
             {
@@ -149,40 +187,85 @@ namespace MOTMaster
             }
         }
 
-        private void storeImage(string savePath, byte[,] imageData)
+        private void storeAbsImage(string savePath, double[,] absImage)
         {
-            int width = imageData.GetLength(1);
-            int height = imageData.GetLength(0);
-            byte[] pixels = new byte[width * height];
-            for (int j = 0; j < height; j++)
+                write2DArray(savePath + "_absImage.txt", absImage);            
+        }
+
+        private void write2DArray(string savePath, double[,] arrayData)
+        {
+            System.IO.StreamWriter streamWriter = new System.IO.StreamWriter(savePath);
+            string output = "";
+            for (int i = 0; i < arrayData.GetUpperBound(0); i++)
             {
-                for (int i = 0; i < width; i++)
+                for (int j = 0; j < arrayData.GetUpperBound(1); j++)
                 {
-                    pixels[(width * j) + i] = imageData[j, i];
+                    output += arrayData[i, j].ToString();
                 }
+                streamWriter.WriteLine(output);
+                output = "";
             }
-            // Define the image palette
-            BitmapPalette myPalette = BitmapPalettes.Gray256Transparent;
+            streamWriter.Close();  
 
-            // Creates a new empty image with the pre-defined palette
+        }
 
-            BitmapSource image = BitmapSource.Create(
-                width,
-                height,
-                96,
-                96,
-                PixelFormats.Indexed8,
-                myPalette,
-                pixels,
-                width);
+        private void storeArray(string savePath, double[] arrayData)
+        {
+            writeArray(savePath,arrayData);
+        }
+        private void writeArray(string savePath, double[] arrayData)
+        {
+            System.IO.StreamWriter streamWriter = new System.IO.StreamWriter(savePath);
+            string output = "";
+            for (int i = 0; i < arrayData.GetUpperBound(0); i++)
+            {
+                output = arrayData[i].ToString();
+                streamWriter.WriteLine(output);
+            }
+            output = "";
+            streamWriter.Close();
 
-            FileStream stream = new FileStream(savePath + ".png", FileMode.Create);
-            PngBitmapEncoder encoder = new PngBitmapEncoder();
-            encoder.Interlace = PngInterlaceOption.On;
-            encoder.Frames.Add(BitmapFrame.Create(image));
-            encoder.Save(stream);
-            stream.Dispose();
+        }
 
+        private void storeImage(string savePath, ushort[,] imageData)
+        {
+            try
+            {
+                int width = imageData.GetLength(1);
+                int height = imageData.GetLength(0);
+                ushort[] pixels = new ushort[width * height];
+                for (int j = 0; j < height; j++)
+                {
+                    for (int i = 0; i < width; i++)
+                    {
+                        pixels[(width * j) + i] = imageData[j, i];
+                    }
+                }
+
+                // Creates a new empty image with no palette (16 bit grayscale image)
+
+                BitmapSource image = BitmapSource.Create(
+                    width,
+                    height,
+                    96,
+                    96,
+                    PixelFormats.Gray16,
+                    null,
+                    pixels,
+                    2*width);
+
+                FileStream stream = new FileStream(savePath + ".png", FileMode.Create, FileAccess.Write);
+                PngBitmapEncoder encoder = new PngBitmapEncoder();
+                encoder.Interlace = PngInterlaceOption.Off;
+                encoder.Frames.Add(BitmapFrame.Create(image));
+                encoder.Save(stream);
+                stream.Dispose();                
+                
+            }
+            catch (ArgumentException e)
+            {
+                MessageBox.Show(e.Message);
+            }
         }
 
         private void storeDictionary(String dataStoreFilePath, Dictionary<string, object> dict)
@@ -201,8 +284,6 @@ namespace MOTMaster
 
         }
 
-        
-        
         private string getDataID(string element, int batchNumber)
         {
             DateTime dt = DateTime.Now;

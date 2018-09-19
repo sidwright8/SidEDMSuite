@@ -77,14 +77,18 @@ namespace SympatheticHardwareControl
         // table of all digital analogTasks
         Hashtable digitalTasks = new Hashtable();
 
-        //Cameras
+        //Cameras - change camera name to use a different camera, cameraBits must correspond to the number of bits per pixel
         public CameraController ImageController;
+        public CameraController MarlinImageController;
+        private string cameraNamePike = "cam0";
+        private string cameraNameMarlin = "cam3";
         
 
         // Declare that there will be a controlWindow
         ControlWindow controlWindow;
         Parker404XR tstage;
         HardwareMonitorWindow monitorWindow;
+        LiveCameraAnalysisWindow liveCameraAnalysisWindow;
 
         //private bool sHCUIControl;
         public enum SHCUIControlState { OFF, LOCAL, REMOTE };
@@ -105,7 +109,7 @@ namespace SympatheticHardwareControl
         {
             return null;
         }
-
+        
 
         public void Start()
         {
@@ -125,8 +129,11 @@ namespace SympatheticHardwareControl
             CreateDigitalTask("aom1enable");
             CreateDigitalTask("aom2enable");
             CreateDigitalTask("aom3enable");
+            CreateDigitalTask("aom4enable");
+            CreateDigitalTask("D2EOMenable");
             CreateDigitalTask("shutterenable");
-
+            CreateDigitalTask("probeshutterenable");
+            CreateDigitalTask("ovenShutterOpen");
             // make the analog output analogTasks. The function "CreateAnalogOutputTask" is defined later
             //e.g.  bBoxAnalogOutputTask = CreateAnalogOutputTask("b");
             //      steppingBBiasAnalogOutputTask = CreateAnalogOutputTask("steppingBBias");
@@ -139,12 +146,27 @@ namespace SympatheticHardwareControl
             CreateAnalogOutputTask("aom2frequency");
             CreateAnalogOutputTask("aom3amplitude");
             CreateAnalogOutputTask("aom3frequency");
-            CreateAnalogOutputTask("coil0current");
-            CreateAnalogOutputTask("coil1current");
-            
+            CreateAnalogOutputTask("BottomTransportCurrent");
+            CreateAnalogOutputTask("TopTransportCurrent");
+            //CreateAnalogOutputTask("proberepumpshutter");
+            CreateAnalogOutputTask("offsetlockfrequency");
+            CreateAnalogOutputTask("D1EOMfrequency");
+            CreateAnalogOutputTask("D2EOMfrequency");
+            CreateAnalogOutputTask("D1EOMamplitude");
+            CreateAnalogOutputTask("D2EOMamplitude");
+            CreateAnalogOutputTask("xcoilcurrent");
+            CreateAnalogOutputTask("ycoilcurrent");
+            CreateAnalogOutputTask("zcoilcurrent");
+            CreateAnalogOutputTask("TopTrappingCoilcurrent");
+            CreateAnalogOutputTask("BottomTrappingCoilcurrent");
+            CreateAnalogOutputTask("MWGeneratorAM");
+            CreateAnalogOutputTask("aom4frequency");
+            CreateAnalogOutputTask("aom4amplitude");
+
             CreateAnalogInputTask("laserLockErrorSignal", -10, 10);
             CreateAnalogInputTask("chamber1Pressure");
             CreateAnalogInputTask("chamber2Pressure");
+            CreateAnalogInputTask("chamber3Pressure");
 
             // make the control controlWindow
             controlWindow = new ControlWindow();
@@ -166,11 +188,18 @@ namespace SympatheticHardwareControl
             loadedState = loadParameters(profilesPath + "StoppedParameters.bin");
             foreach (KeyValuePair<string, double> pair in loadedState.analogs)
             {
-                stateRecord.analogs[pair.Key] = pair.Value;
+                if (stateRecord.analogs.ContainsKey(pair.Key))
+                {
+                    stateRecord.analogs[pair.Key] = pair.Value;
+                }
             }
             foreach (KeyValuePair<string, bool> pair in loadedState.digitals)
             {
-                stateRecord.digitals[pair.Key] = pair.Value;
+                if (stateRecord.digitals.ContainsKey(pair.Key))
+                {
+                    stateRecord.digitals[pair.Key] = pair.Value;
+                    controlWindow.WriteToConsole(string.Concat(pair.Key,pair.Value.ToString()));
+                }
             }
             setValuesDisplayedOnUI(stateRecord);
             ApplyRecordedStateToHardware();
@@ -188,6 +217,16 @@ namespace SympatheticHardwareControl
             monitorWindow.controller = this;
             monitorWindow.Show();
         }
+
+        public void OpenLiveCameraAnalysisWindow()
+        {
+            liveCameraAnalysisWindow = new LiveCameraAnalysisWindow();
+            liveCameraAnalysisWindow.controller = this;
+            liveCameraAnalysisWindow.Show();
+            liveCameraAnalysisWindow.startPlottingValues();
+        }
+
+        
         #endregion
 
         #region private methods for creating un-timed Tasks/channels
@@ -245,6 +284,7 @@ namespace SympatheticHardwareControl
                 try
                 {
                     output = ((Calibration)calibrations[channelName]).Convert(voltage);
+                                        
                 }
                 catch (DAQ.HAL.Calibration.CalibrationRangeException)
                 {
@@ -337,6 +377,16 @@ namespace SympatheticHardwareControl
             }
         }
 
+        //Because .NET is so brilliant, they don't even give you the facility to round to sf apparently. So here is a function to do it for you
+        public static double RoundToSignificantDigits(double d, int digits)
+        {
+            if (d == 0)
+                return 0;
+
+            double scale = Math.Pow(10, Math.Floor(Math.Log10(Math.Abs(d))) + 1);
+            return scale * Math.Round(d / scale, digits);
+        }
+
 
         private void CreateDigitalTask(String name)
         {
@@ -355,6 +405,7 @@ namespace SympatheticHardwareControl
             digitalTask.Control(TaskAction.Unreserve);
         }
 
+        
         #endregion
 
         #region keeping track of the state of the hardware!
@@ -426,6 +477,7 @@ namespace SympatheticHardwareControl
             dialog.ShowDialog();
             if (dialog.FileName != "") stateRecord = loadParameters(dialog.FileName);
             setValuesDisplayedOnUI(stateRecord);
+            UpdateHardware();
         }
 
         private hardwareState loadParameters(String dataStoreFilePath)
@@ -470,6 +522,8 @@ namespace SympatheticHardwareControl
             applyToHardware(changes);
 
             updateStateRecord(changes);
+
+            //controlWindow.WriteToConsole("HardwareUpdated");
 
 
         }
@@ -623,6 +677,7 @@ namespace SympatheticHardwareControl
         {
             foreach (KeyValuePair<string, bool> pairs in state.digitals)
             {
+                Console.Write(string.Concat(pairs.Key,pairs.Value.ToString()));
                 controlWindow.SetDigital(pairs.Key, (bool)pairs.Value);
             }
         }
@@ -670,6 +725,7 @@ namespace SympatheticHardwareControl
             {
                 controlWindow.WriteToConsole("Unable to load Parameters.");
             }
+
             HCState = SHCUIControlState.OFF;
             controlWindow.UpdateUIState(HCState);
             ApplyRecordedStateToHardware();
@@ -712,11 +768,13 @@ namespace SympatheticHardwareControl
 
         #region Local camera control
 
-        public void StartCameraControl()
+        //Pike Image control
+
+        public void StartCameraControl(string camera)
         {
             try
             {
-                ImageController = new CameraController("cam0");
+                ImageController = new CameraController(camera);
                 ImageController.Initialize();
                 ImageController.PrintCameraAttributesToConsole();
             }
@@ -748,27 +806,48 @@ namespace SympatheticHardwareControl
 
         public void CameraSnapshot()
         {
+                try
+                {
+                    ImageController.SingleSnapshot(cameraAttributesPath);
+                }
+                catch { }
+        }
+
+
+        //Marlin image control
+        public void StartMarlinCameraControl(string camera)
+        {
             try
             {
-                ImageController.SingleSnapshot(cameraAttributesPath);
+                MarlinImageController = new CameraController(camera);
+                MarlinImageController.Initialize();
+                MarlinImageController.PrintCameraAttributesToConsole();
             }
-            catch { }
+            catch (Exception e)
+            {
+                MessageBox.Show(e.Message, "Camera Initialization Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Application.Exit();
+
+            }
         }
-       
+     
         #endregion
 
         #region Remote Camera Control
         //Written for taking images triggered by TTL. This "Arm" sets the camera so it's expecting a TTL.
 
-        public byte[,] GrabSingleImage(string cameraAttributesPath)
+        public ushort[,] GrabSingleImage(string cameraAttributesPath)
         {
             return ImageController.SingleSnapshot(cameraAttributesPath);
         }
-        public byte[][,] GrabMultipleImages(string cameraAttributesPath, int numberOfShots)
+
+        public ushort[][,] GrabMultipleImages(string cameraAttributesPath, int numberOfShots)
         {
             try
             {
-                byte[][,] images = ImageController.MultipleSnapshot(cameraAttributesPath, numberOfShots);
+                
+                ushort[][,] images = ImageController.MultipleSnapshotKylesModified(cameraAttributesPath, numberOfShots);
                 return images;
             }
 
@@ -779,6 +858,7 @@ namespace SympatheticHardwareControl
             }
 
         }
+
 
         public bool IsReadyForAcquisition()
         {
@@ -827,32 +907,24 @@ namespace SympatheticHardwareControl
                 double maxVelocity = 900; //max screw speed = 54 rev/sec = 1080 mm/s
                 double maxAcc = 5000; //max acceleration = 1000 rev/s^2 = 20 m/s^2 = 20000 mm/s^2
 
-                if (distance < minDistance || distance > maxDistance || acceleration < minAcc || acceleration > maxAcc || deceleration < minAcc || deceleration > maxAcc || velocity < minVelocity || velocity > maxVelocity)
-                {
-                    distance = minDistance;
-                    acceleration = minAcc;
-                    deceleration = minAcc;
-                    velocity = minVelocity;
-                    throw new ArgumentOutOfRangeException();
-                }
-                else
+                if (distance >= minDistance && distance <= maxDistance && acceleration >= minAcc && acceleration <= maxAcc && deceleration >= minAcc && deceleration <= maxAcc && velocity >= minVelocity && velocity <= maxVelocity)
                 {
                     tstage.Initialize(acceleration, deceleration, distance, velocity);
                     controlWindow.WriteToConsole("Values initialized to: \n Acceleration = " + acceleration.ToString() + " mm/s^2 \n Deceleration = " + deceleration.ToString() +
                         " mm/s^2 \n Distance = " + distance.ToString() + " mm \n Velocity = " + velocity.ToString() + " mm/s");
                 }
+                else
+                {
+                    acceleration = minAcc;
+                    deceleration = minAcc;
+                    velocity = minVelocity;
+                    distance = minDistance;
+                    throw new ArgumentOutOfRangeException();
+                }
             }
             catch (ArgumentOutOfRangeException)
             {
                 MessageBox.Show("Value set is out of the calibrated range! \n Try typing something more sensible.");
-            }
-            catch (NullReferenceException)
-            {
-                MessageBox.Show("Translation stage is not connected.\nPress Connect button before initializing.");
-            }
-            catch (ObjectDisposedException)
-            {
-                MessageBox.Show("Translation stage has been disconnected.\nPress the Connect button to reconnect.");
             }
         }
 
@@ -878,6 +950,38 @@ namespace SympatheticHardwareControl
             try
             {
                 tstage.Move();
+            }
+            catch (NullReferenceException)
+            {
+                MessageBox.Show("Translation stage is not connected.\nPress Connect button first.");
+            }
+            catch (ObjectDisposedException)
+            {
+                MessageBox.Show("Translation stage has been disconnected.\nPress the Connect button to reconnect.");
+            }
+        }
+
+        public void TSDoAll(double acceleration, double deceleration, double distanceF, double distanceB, double velocity)
+        {
+            try
+            {
+                tstage.RunDoAll(acceleration, deceleration, distanceF, distanceB, velocity);
+            }
+            catch (NullReferenceException)
+            {
+                MessageBox.Show("Translation stage is not connected.\nPress Connect button first.");
+            }
+            catch (ObjectDisposedException)
+            {
+                MessageBox.Show("Translation stage has been disconnected.\nPress the Connect button to reconnect.");
+            }
+        }
+
+        public void TSLoadExperimentProfile(double acceleration, double deceleration, double distanceF, double distanceB, double velocity)
+        {
+            try
+            {
+                tstage.LoadExperimentProfile(acceleration, deceleration, distanceF, distanceB, velocity);
             }
             catch (NullReferenceException)
             {
@@ -994,11 +1098,67 @@ namespace SympatheticHardwareControl
             }
         }
 
-        public void TSCheckStatus()
+        public void TSCheckStatus()//This sends "R(ST)" to the stage and sorts out all the info as per page 77 of the VIX manual
         {
+            Dictionary<string, string> StatusTable ;
             try
             {
-                tstage.CheckStatus();
+                StatusTable =tstage.CheckStatus();
+                controlWindow.WriteToConsole("Controller status: ");
+                foreach (KeyValuePair<string, string> entry in StatusTable)
+                {
+                    controlWindow.WriteToConsole(String.Concat(entry.Key," ",entry.Value));
+
+                }
+                controlWindow.WriteToConsole("\n");
+            }
+            catch (NullReferenceException)
+            {
+                MessageBox.Show("Translation stage is not connected.\nPress Connect button first.");
+            }
+            catch (ObjectDisposedException)
+            {
+                MessageBox.Show("Translation stage has been disconnected.\nPress the Connect button to reconnect.");
+            }
+        }
+
+        public void TSReadDriveFaults()//This sends "R(DF)" to the stage and sorts out all the info as per page 79 of the VIX manual
+        {
+            Dictionary<string, string> StatusTable;
+            try
+            {
+                StatusTable = tstage.ReadDriveFaults();
+                controlWindow.WriteToConsole("Drive Fault Status: ");
+                foreach (KeyValuePair<string, string> entry in StatusTable)
+                {
+                    controlWindow.WriteToConsole(String.Concat(entry.Key, " ", entry.Value));
+
+                }
+                controlWindow.WriteToConsole("\n");
+            }
+            catch (NullReferenceException)
+            {
+                MessageBox.Show("Translation stage is not connected.\nPress Connect button first.");
+            }
+            catch (ObjectDisposedException)
+            {
+                MessageBox.Show("Translation stage has been disconnected.\nPress the Connect button to reconnect.");
+            }
+        }
+
+        public void TSReadUserFaults()//This sends "R(UF)" to the stage and sorts out all the info as per page 80 of the VIX manual
+        {
+            Dictionary<string, string> StatusTable;
+            try
+            {
+                StatusTable = tstage.ReadUserFaults();
+                controlWindow.WriteToConsole("User Fault Status: ");
+                foreach (KeyValuePair<string, string> entry in StatusTable)
+                {
+                    controlWindow.WriteToConsole(String.Concat(entry.Key, " ", entry.Value));
+
+                }
+                controlWindow.WriteToConsole("\n");
             }
             catch (NullReferenceException)
             {
@@ -1124,19 +1284,32 @@ namespace SympatheticHardwareControl
         {
             monitorC1P = true;
             Thread C1PThread = new Thread(new ThreadStart(chamber1PressureMonitorLoop));
+            C1PThread.IsBackground = true;//Means thread stops when you close the application.
             C1PThread.Start();
         }
-       
 
+        
+        
         private void chamber1PressureMonitorLoop()
         {
+            //This resets the plot each time you re-tick the box to start monitoring.
+            //PlotYAppend accepts the y value and an x-increment weirdly, so using DateTime objects
+            //to find the tme in seconds was one way of getting round this problem.
+            DateTime cp1LastMeasTime = System.DateTime.Now;
+            Thread.Sleep(1000);
+            double startpressure = RoundToSignificantDigits(ReadChannel1Pressure(), 3);
+            monitorWindow.SetChamber1Pressure(startpressure);
+            monitorWindow.StartChamber1PressureGraphs(startpressure, (double)cp1LastMeasTime.Subtract(cp1LastMeasTime).TotalSeconds);
             while (monitorC1P)
             {
                 Thread.Sleep(1000);
-                double pressure = ReadChannel1Pressure();                
+                double pressure = RoundToSignificantDigits(ReadChannel1Pressure(), 3);
+                DateTime meastime = System.DateTime.Now;
                 lock (c1pStopLock)
                 {
                     monitorWindow.SetChamber1Pressure(pressure);
+                    monitorWindow.UpdateChamber1PressureGraphs(pressure, (double)meastime.Subtract(cp1LastMeasTime).TotalSeconds);
+                    cp1LastMeasTime = meastime;
                     if (!monitorC1P)
                     {
                         return;
@@ -1174,19 +1347,30 @@ namespace SympatheticHardwareControl
         {
             monitorC2P = true;
             Thread C2PThread = new Thread(new ThreadStart(chamber2PressureMonitorLoop));
+            C2PThread.IsBackground = true;//Means thread stops when you close the application.
             C2PThread.Start();
         }
 
 
         private void chamber2PressureMonitorLoop()
         {
+            DateTime cp2LastMeasTime = System.DateTime.Now;
+            Thread.Sleep(1000);
+            double startpressure = RoundToSignificantDigits(ReadChannel2Pressure(), 3);
+            monitorWindow.SetChamber2Pressure(startpressure);
+            monitorWindow.StartChamber2PressureGraphs(startpressure, (double)cp2LastMeasTime.Subtract(cp2LastMeasTime).TotalSeconds);
+
             while (monitorC2P)
             {
+                
                 Thread.Sleep(1000);
-                double pressure = ReadChannel2Pressure();
+                double pressure = RoundToSignificantDigits(ReadChannel2Pressure(), 3);
+                DateTime meastime = System.DateTime.Now;
                 lock (c2pStopLock)
                 {
                     monitorWindow.SetChamber2Pressure(pressure);
+                    monitorWindow.UpdateChamber2PressureGraphs(pressure, (double)meastime.Subtract(cp2LastMeasTime).TotalSeconds);
+                    cp2LastMeasTime = meastime;
                     if (!monitorC2P)
                     {
                         return;
@@ -1213,7 +1397,66 @@ namespace SympatheticHardwareControl
         {
             monitorC2P = false;
         }
+        
+        
+        #region Chamber 3
+        private bool monitorC3P = false;
+        public object c3pStopLock = new object();
 
+
+        public void StartChamber3PressureMonitor()
+        {
+            monitorC3P = true;
+            Thread C3PThread = new Thread(new ThreadStart(chamber3PressureMonitorLoop));
+            C3PThread.IsBackground = true;//Means thread stops when you close the application.
+            C3PThread.Start();
+        }
+
+
+        private void chamber3PressureMonitorLoop()
+        {
+            DateTime cp3LastMeasTime = System.DateTime.Now;
+            Thread.Sleep(1000);
+            double startpressure = RoundToSignificantDigits(ReadChannel3Pressure(), 3);
+            monitorWindow.SetChamber3Pressure(startpressure);
+            monitorWindow.StartChamber3PressureGraphs(startpressure, (double)cp3LastMeasTime.Subtract(cp3LastMeasTime).TotalSeconds);
+            while (monitorC3P)
+            {
+                Thread.Sleep(1000);
+                double pressure = RoundToSignificantDigits(ReadChannel3Pressure(), 3);
+                DateTime meastime = System.DateTime.Now;
+                lock (c3pStopLock)
+                {
+                    monitorWindow.SetChamber3Pressure(pressure);
+                    monitorWindow.UpdateChamber3PressureGraphs(pressure, (double)meastime.Subtract(cp3LastMeasTime).TotalSeconds);
+                    cp3LastMeasTime = meastime;
+                    if (!monitorC3P)
+                    {
+                        return;
+                    }
+                }
+
+            }
+        }
+
+        public double ReadChannel3Pressure()
+        {
+            double value = 10;
+            try
+            {
+                value = ReadAnalogInput("chamber3Pressure", true);
+            }
+            catch
+            {
+            }
+            return value;
+        }
+
+        public void StopChamber3PressureMonitor()
+        {
+            monitorC3P = false;
+        }
+        #endregion
         #endregion
         #endregion
 
@@ -1239,6 +1482,13 @@ namespace SympatheticHardwareControl
 
         #endregion
 
+       
+        
+
+
 
     }
+
 }
+
+

@@ -127,7 +127,7 @@ namespace MOTMaster
 
         private void initializeHardware(MOTMasterSequence sequence)
         {
-            pg.Configure(pgClockFrequency, false, true, true, sequence.DigitalPattern.Pattern.Length, true);
+            pg.Configure(pgClockFrequency, false, true, true, sequence.DigitalPattern.Pattern.Length, true, false);
             apg.Configure(sequence.AnalogPattern, apgClockFrequency);
         }
 
@@ -245,36 +245,57 @@ namespace MOTMaster
                 try
                 {
                     prepareCameraControl();
-
+                    Console.WriteLine("prepared Camera Control");
                     armTranslationStageForTimedMotion(script);
 
                     GrabImage((int)script.Parameters["NumberOfFrames"]);
-
+                    Console.WriteLine("'grabbed image'");
                     buildPattern(sequence, (int)script.Parameters["PatternLength"]);
-
+                    Console.WriteLine("built pattern");
                     waitUntilCameraIsReadyForAcquisition();
 
                     watch.Start();
+                    Console.WriteLine("watch started");
                     runPattern(sequence);
+                    Console.WriteLine("sequence finished");
                     watch.Stop();
+                    Console.WriteLine("watch stopped");
                     //MessageBox.Show(watch.ElapsedMilliseconds.ToString());
                     if (saveEnable)
                     {
+                        Console.WriteLine("waiting for camera acquisition to finish");
+
                         waitUntilCameraAquisitionIsDone();
+                        Console.WriteLine("waited for camera acquisition to finish");
                         try
                         {
                             checkDataArrived();
                         }
                         catch (DataNotArrivedFromHardwareControllerException)
                         {
+                            Console.WriteLine("Data not arrived from hardware controller");
                             return;
                         }
+                        int[] ROIforImageProcessing = { (int)script.Parameters["ROIforImageProcessingx1"], (int)script.Parameters["ROIforImageProcessingx2"], (int)script.Parameters["ROIforImageProcessingy1"], (int)script.Parameters["ROIforImageProcessingy2"] };
+                        processImages(ROIforImageProcessing);
+                        Console.WriteLine("processed images");
                         Dictionary<String, Object> report = GetExperimentReport();
-                        save(script, scriptPath, imageData, report);
-
+                        Console.WriteLine("got experiment report");
+                        if (absImage == null) save(script, scriptPath, imageData, report);
+                        else save(script, scriptPath, imageData, absImage, columnSum, rowSum, report);
+                        Console.WriteLine("saved images");
 
                     }
+                    else
+                    {
+                        Console.WriteLine("waiting for camera acquisition to finish");
+
+                        waitUntilCameraAquisitionIsDone();
+                        Console.WriteLine("waited for camera acquisition to finish");
+                    }
+                    
                     finishCameraControl();
+                    Console.WriteLine("finished camera control");
                     disarmAndReturnTranslationStage();
                 }
                 catch (System.Net.Sockets.SocketException e)
@@ -294,15 +315,20 @@ namespace MOTMaster
         #region private stuff
 
 
-        private void save(MOTMasterScript script, string pathToPattern, byte[,] imageData, Dictionary<String, Object> report)
-        {
-            ioHelper.StoreRun(motMasterDataPath, controllerWindow.GetSaveBatchNumber(), pathToPattern, hardwareClassPath,  
-                script.Parameters, report, cameraAttributesPath, imageData);
-        }
-        private void save(MOTMasterScript script, string pathToPattern, byte[][,] imageData, Dictionary<String, Object> report)
+        private void save(MOTMasterScript script, string pathToPattern, ushort[,] imageData, Dictionary<String, Object> report)
         {
             ioHelper.StoreRun(motMasterDataPath, controllerWindow.GetSaveBatchNumber(), pathToPattern, hardwareClassPath,
                 script.Parameters, report, cameraAttributesPath, imageData);
+        }
+        private void save(MOTMasterScript script, string pathToPattern, ushort[][,] imageData, Dictionary<String, Object> report)
+        {
+            ioHelper.StoreRun(motMasterDataPath, controllerWindow.GetSaveBatchNumber(), pathToPattern, hardwareClassPath,
+                script.Parameters, report, cameraAttributesPath, imageData);
+        }
+        private void save(MOTMasterScript script, string pathToPattern, ushort[][,] imageData, double[,] dividedImage, double[] columnSum,double[] rowSum, Dictionary<String, Object> report)
+        {
+            ioHelper.StoreRun(motMasterDataPath, controllerWindow.GetSaveBatchNumber(), pathToPattern, hardwareClassPath,
+                script.Parameters, report, cameraAttributesPath, imageData, absImage, columnSum, rowSum);
         }
         private void runPattern(MOTMasterSequence sequence)
         {
@@ -435,24 +461,64 @@ namespace MOTMaster
             imageData = (byte[,])camera.GrabSingleImage(cameraAttributesPath);
             imagesRecieved = true;
         }*/
-        private byte[][,] imageData;
+        private ushort[][,] imageData;
+        private double[,] absImage;
+        private double[] rowSum;
+        private double[] columnSum;
         private void grabImage()
         {
             imagesRecieved = false;
             imageData = camera.GrabMultipleImages(cameraAttributesPath, nof);
             imagesRecieved = true;
         }
+        private void processImages(int[] ROI)
+        {
+            int width = 1+ROI[3]-ROI[2];
+            int height = 1+ ROI[1]-ROI[0];
+                        
+            int beamPixel; int cloudPixel; double absPixel; 
+            
+            absImage = new double[width,height];
+            columnSum = new double[width];
+            rowSum = new double[height];
+            for (int i = 0; i < width; i++)
+            {
+                for (int j = 0; j< height; j++)
+                {
+                    cloudPixel = (imageData[0][0 + i,0+ j] - imageData[2][0+i ,0+  j]);
+                    beamPixel = (imageData[1][0+i,0+ j] - imageData[2][0+i, 0+j]);
+                    if (beamPixel <= 0 || cloudPixel <=0) absPixel = 0.0;
+                    else absPixel = -Math.Log( cloudPixel*1.0/ beamPixel);
+
+                    absImage[i, j] = absPixel;
+                    rowSum[j] = rowSum[j]+ absPixel;
+                    columnSum[i] = columnSum[i]+ absPixel;
+                }
+
+            }
+        }
+
         public class DataNotArrivedFromHardwareControllerException : Exception { };
         private bool waitUntilCameraAquisitionIsDone()
         {
+            int numberofwaits = 0; 
             while (!imagesRecieved)
-            { Thread.Sleep(10); }
+            { 
+                Thread.Sleep(10);
+                numberofwaits += 1;
+                if(numberofwaits % 300 ==0)
+                { Console.WriteLine(numberofwaits); }
+            }
+            Console.WriteLine(numberofwaits);
             return true;
         }
         private bool waitUntilCameraIsReadyForAcquisition()
         {
             while (!camera.IsReadyForAcquisition())
-            { Thread.Sleep(10); }
+            { 
+            Thread.Sleep(10);
+            
+            }
             return true;
         }
         private void prepareCameraControl()
@@ -463,6 +529,7 @@ namespace MOTMaster
         {
             camera.FinishRemoteCameraControl();
         }
+
         private void checkDataArrived()
         {
             if (imageData == null)
@@ -471,6 +538,7 @@ namespace MOTMaster
                 throw new DataNotArrivedFromHardwareControllerException();
             }
         }
+        
         #endregion
 
         #region Getting an Experiment Report
@@ -495,17 +563,26 @@ namespace MOTMaster
             tstage.TSInitialize((double)script.Parameters["TSAcceleration"], (double)script.Parameters["TSDeceleration"],
                 (double)script.Parameters["TSDistance"], (double)script.Parameters["TSVelocity"]);
             Thread.Sleep(50);
-            tstage.TSOn();
+            //tstage.TSOn();
             Thread.Sleep(50);
             tstage.TSAutoTriggerDisable();
             Thread.Sleep(50);
-            tstage.TSGo();
+            //tstage.TSGo();
+            //Thread.Sleep(50);
+            //tstage.TSAutoTriggerDisable();
+            //Thread.Sleep(50);
+            //tstage.TSDoAll((double)script.Parameters["TSAcceleration"], (double)script.Parameters["TSDeceleration"],
+                //(double)script.Parameters["TSDistanceF"], (double)script.Parameters["TSDistanceB"], (double)script.Parameters["TSVelocity"]);
+            tstage.TSLoadExperimentProfile((double)script.Parameters["TSAcceleration"], (double)script.Parameters["TSDeceleration"],
+                (double)script.Parameters["TSDistanceF"], (double)script.Parameters["TSDistanceB"], (double)script.Parameters["TSVelocity"]);
+
+
         }
         private void disarmAndReturnTranslationStage()
         {
             tstage.TSAutoTriggerEnable();
-            Thread.Sleep(50);
-            tstage.TSReturn(); // This is the hard coded return of the translation stage at the end of running a MM script
+            //Thread.Sleep(50);
+            //tstage.TSReturn(); // This is the hard coded return of the translation stage at the end of running a MM script
             Thread.Sleep(50);
             tstage.TSDisconnect();
         }
@@ -537,7 +614,7 @@ namespace MOTMaster
 
             ioHelper.UnzipFolder(zipPath);
             SetScriptPath(outputFolderPath +
-                Path.GetFileNameWithoutExtension(zipPath) + ".cs");
+                Path.GetFileNameWithoutExtension(zipPath) + "_script.cs");
 
             SetDictionaryPath(outputFolderPath +
                 Path.GetFileNameWithoutExtension(zipPath) + "_parameters.txt");

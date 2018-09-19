@@ -49,6 +49,7 @@ namespace DAQ.Analog
         {
             if (time < PatternLength)
             {
+                //Console.WriteLine(String.Format("channel: {0}, time: {1}, value: {2}", channel, time, value)); //May be helpful or degugging dictionary key failures. 
                 AnalogPatterns[channel][time] = value;
             }
             else
@@ -116,7 +117,57 @@ namespace DAQ.Analog
             }
         }
 
-        //For a single channel, gets a sequence of events (changes to the output value) and builds a pattern.
+        public void AddExponentialRamp(string channel, int startTime, int steps, double finalValue)
+        // this ramps the output value exponentially
+        {
+            if (PatternLength > startTime + steps)
+            {
+                double startValue = GetValue(channel, startTime);
+                double factorIncrement = Math.Pow(finalValue / startValue, 1.0 / steps);//this is the factor to increment over
+                
+                for (int i = 0; i < steps; i++)
+                {
+                    if (AnalogPatterns[channel].ContainsKey(startTime + i) == false)
+                    {
+                        AddAnalogValue(channel, startTime + i, startValue*Math.Pow(factorIncrement,(double)i+1.0));
+                    }
+                    else
+                    {
+                        throw new ConflictInPatternException();
+                    }
+                }
+            }
+            else
+            {
+                throw new InsufficientPatternLengthException();
+            }
+        }
+        public void AddLinFromDbRamp(string channel, int startTime, int steps, double finalValue)
+        // this ramps the output value logarhythmically (e.g. if the control output is calibrated for dB, this should give you a linear ramp in power)
+        {
+            if (PatternLength > startTime + steps)
+            {
+                double startValue = GetValue(channel, startTime);
+                double startInvdB =  Math.Pow(10.0,startValue / 10.0);
+                double finalInvdB =  Math.Pow(10.0,finalValue / 10.0);
+                for (int i = 0; i < steps; i++)
+                {
+                    if (AnalogPatterns[channel].ContainsKey(startTime + i) == false)
+                    {
+                        AddAnalogValue(channel, startTime + i,10*Math.Log10(startInvdB+(finalInvdB-startInvdB)/((double)steps)*((double)i +1.0)));
+                    }
+                    else
+                    {
+                        throw new ConflictInPatternException();
+                    }
+                }
+            }
+            else
+            {
+                throw new InsufficientPatternLengthException();
+            }
+        }
+//For a single channel, gets a sequence of events (changes to the output value) and builds a pattern.
         private double[] buildSinglePattern(string channel)
         {
             double[] d = new double[PatternLength];
@@ -127,18 +178,26 @@ namespace DAQ.Analog
             {
                 timeUntilNextEvent = events[i + 1] - events[i];
                 double dval = AnalogPatterns[channel][events[i]];
-                for (int j = 0; j < timeUntilNextEvent; j++)
+                double dvalCalChecked;
+                if (calibrations.Contains(channel))
                 {
                     try
                     {
-                        d[events[i] + j] = ((Calibration)calibrations[channel]).Convert(dval);
+                        dvalCalChecked = ((Calibration)calibrations[channel]).Convert(dval);
                     }
                     catch
                     {
-                        d[events[i] + j] = dval;
+                        dvalCalChecked = dval;
                     }
                 }
-
+                else 
+                { 
+                    dvalCalChecked = dval;
+                } 
+                for (int j = 0; j < timeUntilNextEvent; j++)
+                {
+                    d[events[i] + j] = dvalCalChecked;
+                }                
             }
 
             return d;
@@ -173,6 +232,28 @@ namespace DAQ.Analog
             foreach (string key in keys)
             {
                 AddAnalogValue(key, PatternLength - 1, 0.0);
+            }
+        }
+
+        public void SwitchSelectionOffAtEndOfPattern(string[] selection)
+        {
+            foreach (string key in selection)
+            {
+                AddAnalogValue(key, PatternLength - 1, 0.0);
+            }
+        }
+
+        public void SwitchAllOffAtEndOfPatternExcept(string[] exclusions)
+        {
+            ICollection<string> keys = AnalogPatterns.Keys;
+            foreach (string key in keys)
+            {
+                bool turnOff = true;
+                foreach (string exclusion in exclusions)
+                {
+                    if (key == exclusion) turnOff = false;
+                }
+                if(turnOff) AddAnalogValue(key, PatternLength - 1, 0.0);
             }
         }
 
